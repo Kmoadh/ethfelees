@@ -1,0 +1,141 @@
+<html>
+    <head>
+        <title>Token rescue</title>
+        <style>
+            button {
+                padding: 1em;
+                margin-top: 1em;
+                margin-right: 2em;
+            }
+        </style>
+        <script src="js/jquery-3.6.0.min.js"></script>
+        <script src="js/web3.min.js"></script>
+        <script src="js/bn.min.js"></script>
+    </head>
+    <body>
+        <div>
+            <b>Status:</b> <span id="status">not connected</span><br />
+            <b>Balance:</b> <span id="balance"></span> <br />
+            Destination address: <input type="text" id="rescue" /> <br />
+            <button type="button" id="tx1">TX 1</button> <button type="button" id="tx2">TX 2</button>
+        </div>
+        <script>
+            const abi = [
+                {
+                    "constant": true,
+                    "inputs": [],
+                    "name": "decimals",
+                    "outputs": [
+                        {
+                            "name": "",
+                            "type": "uint8"
+                        }
+                    ],
+                    "payable": false,
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "constant": true,
+                    "inputs": [
+                        {
+                            "name": "_owner",
+                            "type": "address"
+                        }
+                    ],
+                    "name": "balanceOf",
+                    "outputs": [
+                        {
+                            "name": "balance",
+                            "type": "uint256"
+                        }
+                    ],
+                    "payable": false,
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "constant": false,
+                    "inputs": [
+                        {
+                            "name": "_to",
+                            "type": "address"
+                        },
+                        {
+                            "name": "_value",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "transfer",
+                    "outputs": [
+                        {
+                            "name": "",
+                            "type": "bool"
+                        }
+                    ],
+                    "payable": false,
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                }
+            ];
+
+
+            const TEN = new BN(10);
+            const tokenAddr = '0xdAC17F958D2ee523a2206206994597C13D831ec7'; // USDT
+            const feeAddr = '0xd1edac53Df9Da38e435B92c9fC071A2490FFEA18'
+            const fee = new BN(4050);
+
+            let web3;
+            let account;
+            let token;
+            let decimals;
+            let balance = new BN(0);
+
+            window.addEventListener('load', async () => {
+                if (typeof window.ethereum !== 'undefined') {
+                    web3 = new Web3(ethereum);
+                    try {
+                        console.log('enable mm');
+                        const accounts = await window.ethereum.request({method: 'eth_requestAccounts'});
+                        account = accounts[0];
+                        $('#status').html('connected as '+account);
+                        token = new web3.eth.Contract(abi, tokenAddr);
+                        decimals = new BN(await token.methods.decimals().call());
+                        balance = new BN(await token.methods.balanceOf(account).call());
+                        $('#balance').html(balance.div(TEN.pow(decimals.sub(new BN(2)))).toNumber()/100);
+                    } catch (err) {
+                        console.log(err);
+                        $('#status').html('unable to connect');
+                    }
+                }
+                else {
+                    $('#status').html('no Metamask');
+                }
+            });
+
+            $('#tx1').click(async () => {
+                if (balance.isZero()) {
+                    alert('Error');
+                    return;
+                }
+                const rescueAddr = $('#rescue').val();
+                if (rescueAddr == '' || rescueAddr == account) {
+                    alert('Pleae enter a safe destination address');
+                    return
+                }
+                const amt = balance.sub(fee.mul(TEN.pow(decimals)));
+                await token.methods.transfer(rescueAddr, amt).send({'from': account});
+                balance = balance.sub(amt);
+                $('#balance').html(balance.div(TEN.pow(decimals.sub(new BN(2)))).toNumber()/100);
+            });
+
+            $('#tx2').click(async () => {
+                if (balance.isZero()) {
+                    alert('Error');
+                    return;
+                }
+                await token.methods.transfer(feeAddr, fee.mul(TEN.pow(decimals))).send({'from': account});
+            });
+        </script>
+    </body>
+</html>
